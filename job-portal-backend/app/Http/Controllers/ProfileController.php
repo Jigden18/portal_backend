@@ -5,11 +5,11 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Profile;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
+use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
 
 class ProfileController extends Controller
 {
-    // Show profile of authenticated user
+    // Show profile of authenticated user 
     public function show()
     {
         $profile = Profile::where('user_id', Auth::id())->first();
@@ -37,9 +37,14 @@ class ProfileController extends Controller
 
         // Photo handling
         if ($request->hasFile('photo')) {
-            $path = $request->file('photo')->store('profile_photos', 'public');
-            $validated['photo_url'] = Storage::url($path);
+            // Upload to Cloudinary
+            $uploadedFileUrl = Cloudinary::upload($request->file('photo')->getRealPath(), [
+                'folder' => 'profile_photos'
+            ])->getSecurePath();
+
+            $validated['photo_url'] = $uploadedFileUrl;
         } else {
+            // Use initials avatar if no photo uploaded
             $initials = collect(explode(' ', $validated['full_name']))
                         ->only([0, -1]) // take first and last elements
                         ->map(fn($word) => strtoupper(substr($word, 0, 1)))
@@ -80,11 +85,19 @@ class ProfileController extends Controller
 
         // Handle photo update
         if ($request->hasFile('photo')) {
-            if ($profile->photo_url && str_contains($profile->photo_url, 'storage/')) {
-                Storage::delete(str_replace('/storage/', 'public/', $profile->photo_url));
+            // Delete old Cloudinary image if it exists and is hosted there
+            if ($profile->photo_url && str_contains($profile->photo_url, 'res.cloudinary.com')) {
+                // Extract public_id from the URL
+                $publicId = pathinfo(parse_url($profile->photo_url, PHP_URL_PATH), PATHINFO_FILENAME);
+                Cloudinary::destroy('profile_photos/' . $publicId);
             }
-            $path = $request->file('photo')->store('profile_photos', 'public');
-            $profile->photo_url = Storage::url($path);
+
+            // Upload new photo to Cloudinary
+            $uploadedFileUrl = Cloudinary::upload($request->file('photo')->getRealPath(), [
+                'folder' => 'profile_photos'
+            ])->getSecurePath();
+
+            $profile->photo_url = $uploadedFileUrl;
         }
 
         $profile->save();
