@@ -5,6 +5,19 @@ use App\Http\Controllers\SocialAuthController;
 use App\Http\Controllers\JobPreferenceController;
 use App\Http\Controllers\ProfileController;
 
+// API routes for the application
+Route::get('/routes', function () {
+    $routes = collect(Route::getRoutes())->map(function ($route) {
+        return [
+            'uri' => $route->uri(),
+            'name' => $route->getName(),
+            'method' => implode('|', $route->methods()),
+        ];
+    });
+
+    return response()->json($routes);
+});
+
 Route::get('/test', function () {
     return response()->json([
         'status' => 'success',
