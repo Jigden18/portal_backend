@@ -43,9 +43,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/job-preferences', [JobPreferenceController::class, 'store']);
 });
 
-// route for user profile management
+// Routes that require authentication (job seeker manages own profile)
 Route::middleware('auth:sanctum')->group(function () {
-    Route::get('/profile', [ProfileController::class, 'show']);
-    Route::post('/profile', [ProfileController::class, 'store']); // Create profile
-    Route::put('/profile', [ProfileController::class, 'update']); // Update allowed fields
+    Route::get('/profile', [ProfileController::class, 'show']);     // Get current user's profile
+    Route::post('/profile', [ProfileController::class, 'store']);   // Create profile
+    Route::put('/profile', [ProfileController::class, 'update']);   // Update profile
 });
+
+// Public or admin-accessible route to view another user's profile
+Route::get('/profiles/{userId}', [ProfileController::class, 'showByUser']);

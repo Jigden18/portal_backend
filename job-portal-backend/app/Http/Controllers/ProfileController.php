@@ -6,105 +6,216 @@ use Illuminate\Http\Request;
 use App\Models\Profile;
 use Illuminate\Support\Facades\Auth;
 use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
+use Illuminate\Validation\ValidationException;
 
 class ProfileController extends Controller
 {
-    // Show profile of authenticated user 
+    /**
+     * Show the authenticated user's profile
+     */
     public function show()
     {
-        $profile = Profile::where('user_id', Auth::id())->first();
-        return response()->json($profile);
+        // Fetch profile for the logged-in user
+        $profile = Profile::firstWhere('user_id', Auth::id());
+
+        if (!$profile) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Profile not found'
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Profile retrieved successfully',
+            'data' => $profile
+        ]);
     }
 
-    // Create profile (first time)
+    /**
+     * Show profile of a specific user by their user ID
+     * Useful for employers viewing job seekers
+     */
+    public function showByUser($userId)
+    {
+        $profile = Profile::firstWhere('user_id', $userId);
+
+        if (!$profile) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Profile not found'
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Profile retrieved successfully',
+            'data' => $profile
+        ]);
+    }
+
+    /**
+     * Create a profile (first time for a user)
+     */
     public function store(Request $request)
     {
-        // Prevent duplicate profile creation
+        // Prevent duplicate profiles
         if (Profile::where('user_id', Auth::id())->exists()) {
-            return response()->json(['message' => 'Profile already exists.'], 400);
+            return response()->json([
+                'success' => false,
+                'message' => 'Profile already exists.'
+            ], 400);
         }
 
-        $validated = $request->validate([
-            'full_name' => 'required|string|max:255',
-            'date_of_birth' => 'required|date',
-            'address' => 'required|string|max:255',
-            'occupation' => 'required|string|max:255',
-            'photo' => 'nullable|image|mimes:jpg,jpeg,png|max:2048'
-        ]);
+        try {
+            // Validate the request data
+            $validated = $request->validate([
+                'full_name' => 'required|string|max:255',
+                'date_of_birth' => 'required|date',
+                'address' => 'required|string|max:255',
+                'occupation' => 'required|string|max:255',
+                // We use nullable here because we check for the file's existence below
+                'photo' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
+            ]);
 
-        $validated['user_id'] = Auth::id();
-        $validated['email'] = Auth::user()->email; // email from authenticated user
+            // Attach authenticated user details
+            $validated['user_id'] = Auth::id();
+            $validated['email'] = Auth::user()->email;
 
-        // Photo handling
-        if ($request->hasFile('photo')) {
-            // Upload to Cloudinary
-            $uploadedFileUrl = Cloudinary::upload($request->file('photo')->getRealPath(), [
-                'folder' => 'profile_photos'
-            ])->getSecurePath();
+            // Initialize photo_url and photo_public_id for the new profile
+            $validated['photo_url'] = null;
+            $validated['photo_public_id'] = null;
 
-            $validated['photo_url'] = $uploadedFileUrl;
-        } else {
-            // Use initials avatar if no photo uploaded
-            $initials = collect(explode(' ', $validated['full_name']))
-                        ->only([0, -1]) // take first and last elements
-                        ->map(fn($word) => strtoupper(substr($word, 0, 1)))
-                        ->implode('');
-            $validated['photo_url'] = "https://ui-avatars.com/api/?name={$initials}&background=random";
-        }
+            if ($request->hasFile('photo') && $request->file('photo')->isValid()) {
+                $path = $request->file('photo')->getRealPath();
 
-        $profile = Profile::create($validated);
+                $cld = new \Cloudinary\Cloudinary([
+                    'cloud' => [
+                        'cloud_name' => config('cloudinary.cloud.cloud_name') ?? env('CLOUDINARY_CLOUD_NAME'),
+                        'api_key'    => config('cloudinary.cloud.api_key')    ?? env('CLOUDINARY_API_KEY'),
+                        'api_secret' => config('cloudinary.cloud.api_secret') ?? env('CLOUDINARY_API_SECRET'),
+                    ],
+                    'url' => ['secure' => true],
+                ]);
 
-        return response()->json([
-            'message' => 'Profile created successfully',
-            'profile' => $profile
-        ]);
-    }
+                $res = $cld->uploadApi()->upload($path, [
+                    'folder' => 'profile_photos',
+                    'verify' => false
+                ]);
 
-    // Update editable fields only
-    public function update(Request $request)
-    {
-        $profile = Profile::where('user_id', Auth::id())->firstOrFail();
-
-        $validated = $request->validate([
-            'date_of_birth' => 'nullable|date',
-            'address' => 'nullable|string|max:255',
-            'occupation' => 'nullable|string|max:255',
-            'photo' => 'nullable|image|mimes:jpg,jpeg,png|max:2048'
-        ]);
-
-        // Only update allowed fields
-        if ($request->has('date_of_birth')) {
-            $profile->date_of_birth = $validated['date_of_birth'];
-        }
-        if ($request->has('address')) {
-            $profile->address = $validated['address'];
-        }
-        if ($request->has('occupation')) {
-            $profile->occupation = $validated['occupation'];
-        }
-
-        // Handle photo update
-        if ($request->hasFile('photo')) {
-            // Delete old Cloudinary image if it exists and is hosted there
-            if ($profile->photo_url && str_contains($profile->photo_url, 'res.cloudinary.com')) {
-                // Extract public_id from the URL
-                $publicId = pathinfo(parse_url($profile->photo_url, PHP_URL_PATH), PATHINFO_FILENAME);
-                Cloudinary::destroy('profile_photos/' . $publicId);
+                $validated['photo_url']      = $res['secure_url'] ?? null;
+                $validated['photo_public_id'] = $res['public_id'] ?? null;
+            } else {
+                // Generate avatar from initials if no photo uploaded
+                $parts = explode(' ', $validated['full_name']);
+                $initials = strtoupper(substr($parts[0], 0, 1) . substr(end($parts), 0, 1));
+                $validated['photo_url'] = "https://ui-avatars.com/api/?name={$initials}&background=random";
             }
 
-            // Upload new photo to Cloudinary
-            $uploadedFileUrl = Cloudinary::upload($request->file('photo')->getRealPath(), [
-                'folder' => 'profile_photos'
-            ])->getSecurePath();
+            // Create the profile
+            $profile = Profile::create($validated);
 
-            $profile->photo_url = $uploadedFileUrl;
+            return response()->json([
+                'success' => true,
+                'message' => 'Profile created successfully',
+                'data' => $profile
+            ], 201);
+
+        } catch (ValidationException $e) {
+            // Catch Laravel's validation exception
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed: ' . $e->getMessage(),
+                'errors' => $e->errors()
+            ], 422);
+
+        } catch (\Exception $e) {
+            // Catch Cloudinary or other general errors
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create profile: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Update an existing profile (only editable fields)
+     */
+    public function update(Request $request)
+    {
+        // Get logged-in user's profile
+        $profile = Profile::firstWhere('user_id', Auth::id());
+
+        if (!$profile) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Profile not found'
+            ], 404);
         }
 
-        $profile->save();
+        try {
+            // Validation rules for update (fields optional)
+            $validated = $request->validate([
+                'address' => 'nullable|string|max:255',
+                'occupation' => 'nullable|string|max:255',
+                'photo' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
+            ]);
 
-        return response()->json([
-            'message' => 'Profile updated successfully',
-            'profile' => $profile
-        ]);
+            // If a new photo is uploaded
+            if ($request->hasFile('photo') && $request->file('photo')->isValid()) {
+                // Delete old Cloudinary image if it exists
+                if ($profile->photo_public_id) {
+                    Cloudinary::destroy($profile->photo_public_id);
+                }
+
+
+                $path = $request->file('photo')->getRealPath();
+
+                $cld = new \Cloudinary\Cloudinary([
+                    'cloud' => [
+                        'cloud_name' => config('cloudinary.cloud.cloud_name') ?? env('CLOUDINARY_CLOUD_NAME'),
+                        'api_key'    => config('cloudinary.cloud.api_key')    ?? env('CLOUDINARY_API_KEY'),
+                        'api_secret' => config('cloudinary.cloud.api_secret') ?? env('CLOUDINARY_API_SECRET'),
+                    ],
+                    'url' => ['secure' => true],
+                ]);
+
+                $res = $cld->uploadApi()->upload($path, [
+                    'folder' => 'profile_photos',
+                    'verify' => false
+                ]);
+
+                $profile->photo_url      = $res['secure_url'] ?? null;
+                $profile->photo_public_id = $res['public_id'] ?? null;
+            }
+
+
+            // Apply simple field updates
+            $profile->fill($validated);
+
+            // Save changes
+            $profile->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Profile updated successfully',
+                'data' => $profile
+            ]);
+
+        } catch (ValidationException $e) {
+            // Catch Laravel's validation exception
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed: ' . $e->getMessage(),
+                'errors' => $e->errors()
+            ], 422);
+
+        } catch (\Exception $e) {
+            // Catch Cloudinary or DB errors
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update profile: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

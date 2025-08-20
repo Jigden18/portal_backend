@@ -16,9 +16,13 @@ class Profile extends Model
         'date_of_birth',
         'address',
         'occupation',
-        'photo_url'
+        'photo_url',
+        'photo_public_id',
     ];
 
+    /**
+     * Each profile belongs to a user
+     */
     public function user()
     {
         return $this->belongsTo(User::class);
