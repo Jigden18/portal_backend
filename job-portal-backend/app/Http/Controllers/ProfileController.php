@@ -139,11 +139,10 @@ class ProfileController extends Controller
     }
 
     /**
-     * Update an existing profile (only editable fields)
+     * Update limited profile fields (occupation, address, photo)
      */
     public function update(Request $request)
     {
-        // Get logged-in user's profile
         $profile = Profile::firstWhere('user_id', Auth::id());
 
         if (!$profile) {
@@ -154,64 +153,145 @@ class ProfileController extends Controller
         }
 
         try {
-            // Validation rules for update (fields optional)
-            $validated = $request->validate([
-                'address' => 'nullable|string|max:255',
-                'occupation' => 'nullable|string|max:255',
-                'photo' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
+            // Debug: Log everything about the request
+            \Log::info('=== UPDATE REQUEST DEBUG ===');
+            \Log::info('HTTP Method:', [$request->method()]);
+            \Log::info('Content Type:', [$request->header('Content-Type')]);
+            \Log::info('Raw Content:', [$request->getContent()]);
+            \Log::info('All Input:', $request->all());
+            \Log::info('Request Input Keys:', array_keys($request->all()));
+            \Log::info('Has occupation?', [$request->has('occupation')]);
+            \Log::info('Has address?', [$request->has('address')]);
+            \Log::info('Occupation value:', [$request->input('occupation')]);
+            \Log::info('Address value:', [$request->input('address')]);
+
+            // For form-data with PUT requests, we need to be more explicit
+            $occupation = $request->input('occupation');
+            $address = $request->input('address');
+
+            \Log::info('Extracted values:', [
+                'occupation' => $occupation,
+                'address' => $address
             ]);
 
-            // If a new photo is uploaded
-            if ($request->hasFile('photo') && $request->file('photo')->isValid()) {
-                // Delete old Cloudinary image if it exists
-                if ($profile->photo_public_id) {
-                    Cloudinary::destroy($profile->photo_public_id);
-                }
-
-
-                $path = $request->file('photo')->getRealPath();
-
-                $cld = new \Cloudinary\Cloudinary([
-                    'cloud' => [
-                        'cloud_name' => config('cloudinary.cloud.cloud_name') ?? env('CLOUDINARY_CLOUD_NAME'),
-                        'api_key'    => config('cloudinary.cloud.api_key')    ?? env('CLOUDINARY_API_KEY'),
-                        'api_secret' => config('cloudinary.cloud.api_secret') ?? env('CLOUDINARY_API_SECRET'),
-                    ],
-                    'url' => ['secure' => true],
-                ]);
-
-                $res = $cld->uploadApi()->upload($path, [
-                    'folder' => 'profile_photos',
-                    'verify' => false
-                ]);
-
-                $profile->photo_url      = $res['secure_url'] ?? null;
-                $profile->photo_public_id = $res['public_id'] ?? null;
+            // Manual validation instead of using validate() method
+            $errors = [];
+            
+            if ($occupation !== null && (!is_string($occupation) || strlen($occupation) > 255)) {
+                $errors['occupation'] = ['Occupation must be a string with maximum 255 characters'];
+            }
+            
+            if ($address !== null && (!is_string($address) || strlen($address) > 255)) {
+                $errors['address'] = ['Address must be a string with maximum 255 characters'];
             }
 
+            if (!empty($errors)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors' => $errors
+                ], 422);
+            }
 
-            // Apply simple field updates
-            $profile->fill($validated);
+            $updates = [];
 
-            // Save changes
-            $profile->save();
+            // Update only fields that are present and not empty
+            if ($request->has('occupation') && $occupation !== null && $occupation !== '') {
+                $updates['occupation'] = $occupation;
+            }
+            
+            if ($request->has('address') && $address !== null && $address !== '') {
+                $updates['address'] = $address;
+            }
+
+            // Handle photo removal
+            if ($request->has('remove_photo') && $request->input('remove_photo')) {
+                if ($profile->photo_public_id) {
+                    try {
+                        $cld = new \Cloudinary\Cloudinary([
+                            'cloud' => [
+                                'cloud_name' => config('cloudinary.cloud.cloud_name') ?? env('CLOUDINARY_CLOUD_NAME'),
+                                'api_key' => config('cloudinary.cloud.api_key') ?? env('CLOUDINARY_API_KEY'),
+                                'api_secret' => config('cloudinary.cloud.api_secret') ?? env('CLOUDINARY_API_SECRET'),
+                            ],
+                            'url' => ['secure' => true],
+                        ]);
+                        $cld->uploadApi()->destroy($profile->photo_public_id);
+                    } catch (\Exception $e) {
+                        \Log::warning('Failed to delete photo from Cloudinary: ' . $e->getMessage());
+                    }
+                }
+
+                $parts = explode(' ', $profile->full_name);
+                $initials = strtoupper(substr($parts[0], 0, 1) . substr(end($parts), 0, 1));
+                $updates['photo_url'] = "https://ui-avatars.com/api/?name={$initials}&background=random";
+                $updates['photo_public_id'] = null;
+            }
+            // Handle new photo upload
+            elseif ($request->hasFile('photo') && $request->file('photo')->isValid()) {
+                try {
+                    $path = $request->file('photo')->getRealPath();
+
+                    $cld = new \Cloudinary\Cloudinary([
+                        'cloud' => [
+                            'cloud_name' => config('cloudinary.cloud.cloud_name') ?? env('CLOUDINARY_CLOUD_NAME'),
+                            'api_key' => config('cloudinary.cloud.api_key') ?? env('CLOUDINARY_API_KEY'),
+                            'api_secret' => config('cloudinary.cloud.api_secret') ?? env('CLOUDINARY_API_SECRET'),
+                        ],
+                        'url' => ['secure' => true],
+                    ]);
+
+                    if ($profile->photo_public_id) {
+                        try {
+                            $cld->uploadApi()->destroy($profile->photo_public_id);
+                        } catch (\Exception $e) {
+                            \Log::warning('Failed to delete old photo: ' . $e->getMessage());
+                        }
+                    }
+
+                    $res = $cld->uploadApi()->upload($path, [
+                        'folder' => 'profile_photos',
+                        'verify' => false
+                    ]);
+
+                    $updates['photo_url'] = $res['secure_url'] ?? $profile->photo_url;
+                    $updates['photo_public_id'] = $res['public_id'] ?? $profile->photo_public_id;
+
+                } catch (\Exception $e) {
+                    \Log::error('Photo upload failed: ' . $e->getMessage());
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Failed to upload photo: ' . $e->getMessage()
+                    ], 500);
+                }
+            }
+
+            \Log::info('Final updates array:', $updates);
+
+            if (empty($updates)) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'No changes detected',
+                    'data' => $profile
+                ], 200);
+            }
+
+            // Apply updates
+            $updateResult = $profile->update($updates);
+            \Log::info('Update result:', ['success' => $updateResult]);
+
+            // Get fresh data
+            $updatedProfile = $profile->fresh();
+            \Log::info('Profile after update:', $updatedProfile->toArray());
 
             return response()->json([
                 'success' => true,
                 'message' => 'Profile updated successfully',
-                'data' => $profile
-            ]);
-
-        } catch (ValidationException $e) {
-            // Catch Laravel's validation exception
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed: ' . $e->getMessage(),
-                'errors' => $e->errors()
-            ], 422);
+                'data' => $updatedProfile
+            ], 200);
 
         } catch (\Exception $e) {
-            // Catch Cloudinary or DB errors
+            \Log::error('Profile update failed: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to update profile: ' . $e->getMessage()
