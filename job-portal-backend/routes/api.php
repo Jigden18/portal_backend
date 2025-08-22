@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SocialAuthController;
 use App\Http\Controllers\JobPreferenceController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\OrganizationController;
 
 // API routes for the application
 Route::get('/routes', function () {
@@ -52,3 +53,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
 // Public or admin-accessible route to view another user's profile
 Route::get('/profiles/{userId}', [ProfileController::class, 'showByUser']);
+
+// Routes for organization profile management
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/organization', [OrganizationController::class, 'show']);
+    Route::post('/organization', [OrganizationController::class, 'store']);
+    Route::put('/organization', [OrganizationController::class, 'update']);
+
+    // View organization by user ID
+    Route::get('/organization/{userId}', [OrganizationController::class, 'showByUser']);
+});

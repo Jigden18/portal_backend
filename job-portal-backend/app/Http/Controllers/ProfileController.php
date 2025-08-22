@@ -99,7 +99,7 @@ class ProfileController extends Controller
                 ]);
 
                 $res = $cld->uploadApi()->upload($path, [
-                    'folder' => 'profile_photos',
+                    'folder' => config('cloudinary.upload.folder'),
                     'verify' => false
                 ]);
 
@@ -250,7 +250,7 @@ class ProfileController extends Controller
                     }
 
                     $res = $cld->uploadApi()->upload($path, [
-                        'folder' => 'profile_photos',
+                        'folder' => config('cloudinary.upload.folder'),
                         'verify' => false
                     ]);
 
