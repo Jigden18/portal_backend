@@ -5,6 +5,8 @@ use App\Http\Controllers\SocialAuthController;
 use App\Http\Controllers\JobPreferenceController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\OrganizationController;
+use App\Http\Controllers\Org\JobVacancyController as OrgVacancy;
+use App\Http\Controllers\Seeker\JobSearchController as SeekerJobs;
 
 // API routes for the application
 Route::get('/routes', function () {
@@ -62,4 +64,21 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // View organization by user ID
     Route::get('/organization/{userId}', [OrganizationController::class, 'showByUser']);
+});
+
+// Organization (auth required)
+Route::middleware(['auth:sanctum', 'has.organization'])->prefix('org')->group(function () {
+    Route::get('/vacancies', [OrgVacancy::class, 'index']);
+    Route::post('/vacancies', [OrgVacancy::class, 'store']);
+    Route::get('/vacancies/{id}', [OrgVacancy::class, 'show']);
+    Route::put('/vacancies/{id}', [OrgVacancy::class, 'update']);
+    Route::patch('/vacancies/{id}/toggle-status', [OrgVacancy::class, 'toggleStatus']);
+    Route::delete('/vacancies/{id}', [OrgVacancy::class, 'destroy']);
+});
+
+// Seeker (public)
+Route::middleware(['auth:sanctum', 'has.profile'])->prefix('jobs')->group(function () {
+    Route::get('/filters/options', [SeekerJobs::class, 'filterOptions']); // dynamic filters
+    Route::get('/', [SeekerJobs::class, 'index']);         // list with filters
+    Route::get('/{id}', [SeekerJobs::class, 'show']);      // job detail
 });

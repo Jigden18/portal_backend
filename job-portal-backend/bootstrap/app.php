@@ -14,6 +14,13 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         //
     })
+    ->withMiddleware(function (Middleware $middleware) {
+        // Register route middleware
+        $middleware->alias([
+            'has.organization' => \App\Http\Middleware\EnsureHasOrganization::class,
+            'has.profile' => \App\Http\Middleware\EnsureHasProfile::class,
+        ]);
+    })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
     })->create();

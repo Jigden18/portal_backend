@@ -32,6 +32,20 @@ class User extends Authenticatable
         return $this->belongsToMany(JobCategory::class, 'user_job_category');
     }
 
+    public function profile()
+    {
+    return $this->hasOne(Profile::class);
+    }
+
+
+    /**
+     * A user has one organization
+     */
+    public function organization()
+    {
+        return $this->hasOne(Organization::class);
+    }
+
 
 }
 
