@@ -13,7 +13,7 @@ class JobVacancy extends Model
         'position',
         'field',
         'salary',
-        'currency',        
+        'currency_id',        
         'location',
         'type',
         'requirements',
@@ -34,6 +34,22 @@ class JobVacancy extends Model
         return $this->belongsTo(Organization::class, 'organization_id');
     }
 
+    public function currency() // relation to currency
+    {
+        return $this->belongsTo(Currency::class);
+    }
+
+
+    // AUTO-INFER FIELD FROM POSITION
+    protected static function booted()
+    {
+        static::saving(function ($job) {
+            if (empty($job->field) && !empty($job->position)) {
+                $job->field = self::inferField($job->position);
+            }
+        });
+    }
+    
     /**
      * Infer field of work from position text
      */
@@ -41,7 +57,7 @@ class JobVacancy extends Model
     {
         $map = [
             'Design'       => ['designer', 'ui', 'ux', 'graphic', 'figma'],
-            'Programming'  => ['developer', 'engineer', 'programmer', 'backend', 'frontend', 'fullstack'],
+            'Programming'  => ['developer', 'dev', 'engineer', 'programmer', 'backend', 'frontend', 'fullstack', 'software'],
             'Finance'      => ['accountant', 'finance', 'auditor', 'analyst', 'bank'],
             'Marketing'    => ['marketing', 'seo', 'content', 'advertising', 'brand'],
             'Music'        => ['musician', 'composer', 'singer', 'dj'],

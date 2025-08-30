@@ -16,30 +16,38 @@ class JobSearchController extends Controller
     {
         $profile = $request->profile; // available thanks to middleware
 
-        $query = JobVacancy::with('organization') // keep full org relation
+        $query = JobVacancy::with(['organization', 'currency']) // keep full org relation
             ->where('status', 'Active');
 
         // Filters
+        // FIELD
         if ($request->filled('field')) {
-            $fields = explode(',', $request->field);
-            $query->whereIn('field', $fields);
+            $rawFields = explode(',', $request->field);
+            $normalized = collect($rawFields)->map(fn($f) => JobVacancy::inferField($f) ?? $f)->unique();
+            $query->whereIn('field', $normalized);
         }
-
+        // TYPE
         if ($request->filled('type')) {
             $types = explode(',', $request->type);
             $query->whereIn('type', $types);
         }
-
+        // LOCATION
         if ($request->filled('location')) {
             $query->where('location', 'like', '%' . $request->location . '%');
         }
-
+        // SEARCH (position, field)
         if ($request->filled('q')) {
             $q = $request->q;
             $query->where(function ($sub) use ($q) {
                 $sub->where('position', 'like', "%$q%")
                     ->orWhere('field', 'like', "%$q%");
             });
+        }
+
+        // CURRENCY filter
+        if ($request->filled('currency')) {
+            $currencies = explode(',', $request->currency);
+            $query->whereHas('currency', fn($sub) => $sub->whereIn('code', $currencies));
         }
 
         if ($request->filled('min_salary')) {
@@ -72,7 +80,7 @@ class JobSearchController extends Controller
     {
         $profile = $request->profile;
 
-        $vacancy = JobVacancy::with('organization')
+        $vacancy = JobVacancy::with(['organization', 'currency'])
             ->where('status', 'Active')
             ->findOrFail($id);
 
@@ -93,7 +101,7 @@ class JobSearchController extends Controller
             'fields'     => JobVacancy::whereNotNull('field')->distinct()->pluck('field'),
             'locations'  => JobVacancy::distinct()->pluck('location'),
             'types'      => JobVacancy::distinct()->pluck('type'),
-            'currencies' => JobVacancy::distinct()->pluck('currency'),
+            'currencies' => Currency::all(), // Fetch all currencies
         ]);
     }
 
@@ -107,7 +115,10 @@ class JobSearchController extends Controller
             'position'     => $vacancy->position,
             'field'        => $vacancy->field,
             'salary'       => $vacancy->salary,
-            'currency'     => $vacancy->currency,
+            'currency' => [
+                'code' => $vacancy->currency->code ?? null,
+                'symbol' => $vacancy->currency->symbol ?? null,
+            ],
             'location'     => $vacancy->location,
             'type'         => $vacancy->type,
             'status'       => $vacancy->status,

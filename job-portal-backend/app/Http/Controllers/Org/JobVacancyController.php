@@ -14,7 +14,7 @@ class JobVacancyController extends Controller
     {
         $organization = $request->organization;
 
-        $query = JobVacancy::with('organization')
+        $query = JobVacancy::with(['organization', 'currency'])
             ->where('organization_id', $organization->id);
 
         if ($request->filled('status') && in_array($request->status, ['Active', 'Inactive'])) {
@@ -44,7 +44,7 @@ class JobVacancyController extends Controller
         $validated = $request->validate([
             'position'     => ['required', 'string', 'max:255'],
             'salary'       => ['nullable', 'numeric'],
-            'currency'     => ['required_with:salary', 'string', 'max:3'], // USD, EUR, etc.
+            'currency_id' => ['required_with:salary','exists:currencies,id'],
             'location'     => ['required', 'string', 'max:255'],
             'type'         => ['required', Rule::in(['Full Time', 'Part Time', 'Internship', 'Contract'])],
             'requirements' => ['nullable', 'array'],
@@ -56,7 +56,7 @@ class JobVacancyController extends Controller
             'position'        => $validated['position'],
             'field'           => $field,
             'salary'          => $validated['salary'] ?? null,
-            'currency'        => $validated['currency'] ?? 'USD',
+            'currency_id'     => $validated['currency_id'],
             'location'        => $validated['location'],
             'type'            => $validated['type'],
             'requirements'    => $validated['requirements'] ?? [],
@@ -65,7 +65,7 @@ class JobVacancyController extends Controller
         ]);
 
         return response()->json([
-            'vacancy' => $this->formatVacancy($vacancy->load('organization'))
+            'vacancy' => $this->formatVacancy($vacancy->load(['organization', 'currency']))
         ], 201);
     }
 
@@ -74,7 +74,7 @@ class JobVacancyController extends Controller
     {
         $organization = $request->organization;
 
-        $vacancy = JobVacancy::with('organization')
+        $vacancy = JobVacancy::with(['organization', 'currency'])
             ->where('organization_id', $organization->id)
             ->findOrFail($id);
 
@@ -93,7 +93,7 @@ class JobVacancyController extends Controller
         $validated = $request->validate([
             'position'     => ['sometimes', 'string', 'max:255'],
             'salary'       => ['nullable', 'numeric'],
-            'currency'     => ['sometimes', 'string', 'max:3'],
+            'currency_id'  => ['sometimes', 'exists:currencies,id'],
             'location'     => ['sometimes', 'string', 'max:255'],
             'type'         => ['sometimes', Rule::in(['Full Time', 'Part Time', 'Internship', 'Contract'])],
             'requirements' => ['nullable', 'array'],
@@ -107,7 +107,7 @@ class JobVacancyController extends Controller
         $vacancy->update($validated);
 
         return response()->json([
-            'vacancy' => $this->formatVacancy($vacancy->load('organization'))
+            'vacancy' => $this->formatVacancy($vacancy->load(['organization', 'currency']))
         ]);
     }
 
@@ -121,7 +121,7 @@ class JobVacancyController extends Controller
         $vacancy->save();
 
         return response()->json([
-            'vacancy' => $this->formatVacancy($vacancy->load('organization'))
+            'vacancy' => $this->formatVacancy($vacancy->load(['organization', 'currency']))
         ]);
     }
 
@@ -146,7 +146,10 @@ class JobVacancyController extends Controller
             'position'    => $vacancy->position,
             'field'       => $vacancy->field,
             'salary'      => $vacancy->salary,
-            'currency'    => $vacancy->currency,
+            'currency'    => [
+                'code'   => $vacancy->currency->code ?? null,
+                'symbol' => $vacancy->currency->symbol ?? null,
+            ],
             'location'    => $vacancy->location,
             'type'        => $vacancy->type,
             'status'      => $vacancy->status,

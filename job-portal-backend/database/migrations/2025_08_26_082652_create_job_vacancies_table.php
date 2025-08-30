@@ -11,7 +11,7 @@ return new class extends Migration {
             $table->string('position');
             $table->string('field')->nullable();
             $table->decimal('salary', 10, 2)->nullable();
-            $table->string('currency', 10)->default('USD'); // new column
+            $table->unsignedBigInteger('currency_id')->nullable();
             $table->string('location');
             $table->enum('type', ['Full Time', 'Part Time', 'Internship', 'Contract']);
             $table->json('requirements')->nullable();
@@ -19,11 +19,19 @@ return new class extends Migration {
             $table->unsignedBigInteger('organization_id');
             $table->timestamps();
 
+            // Foreign key constraint to organizations table
             $table->foreign('organization_id')
                   ->references('id')
                   ->on('organizations') // reference organizations
                   ->onDelete('cascade');
+            
+            // Foreign key to currencies table
+            $table->foreign('currency_id')
+                  ->references('id')
+                  ->on('currencies')
+                  ->onDelete('set null');
 
+            // Indexes for faster searches
             $table->index(['field', 'location', 'type', 'status', 'salary']);
         });
     }
