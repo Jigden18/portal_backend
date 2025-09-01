@@ -21,18 +21,13 @@ class JobVacancyController extends Controller
             $query->where('status', $request->status);
         }
 
-        $vacancies = $query->latest()->paginate(15);
+        // Fetch all vacancies
+        $vacancies = $query->latest()->get();
 
         return response()->json([
             'vacancies' => $vacancies->map(function ($vacancy) {
                 return $this->formatVacancy($vacancy);
             }),
-            'pagination' => [
-                'total'        => $vacancies->total(),
-                'per_page'     => $vacancies->perPage(),
-                'current_page' => $vacancies->currentPage(),
-                'last_page'    => $vacancies->lastPage(),
-            ]
         ]);
     }
 

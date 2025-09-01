@@ -46,6 +46,9 @@ class JobVacancy extends Model
         static::saving(function ($job) {
             if (empty($job->field) && !empty($job->position)) {
                 $job->field = self::inferField($job->position);
+
+                // Fallback: if not in map, use the position itself
+                $job->field = $job->field ?? $job->position;
             }
         });
     }

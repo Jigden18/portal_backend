@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Seeker;
 
 use App\Http\Controllers\Controller;
 use App\Models\JobVacancy;
+use App\Models\Currency;
 use Illuminate\Http\Request;
 
 class JobSearchController extends Controller
@@ -59,16 +60,11 @@ class JobSearchController extends Controller
 
         $query->orderBy('created_at', 'desc');
 
-        $vacancies = $query->paginate(15);
+        // Fetch all results
+        $vacancies = $query->get();
 
         return response()->json([
             'vacancies' => $vacancies->map(fn($vacancy) => $this->formatVacancy($vacancy)),
-            'pagination' => [
-                'total'        => $vacancies->total(),
-                'per_page'     => $vacancies->perPage(),
-                'current_page' => $vacancies->currentPage(),
-                'last_page'    => $vacancies->lastPage(),
-            ]
         ]);
     }
 
