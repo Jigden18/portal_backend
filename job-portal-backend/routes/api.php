@@ -7,6 +7,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\Org\JobVacancyController as OrgVacancy;
 use App\Http\Controllers\Seeker\JobSearchController as SeekerJobs;
+use App\Http\Controllers\Seeker\JobBookmarkController; 
 
 // API routes for the application
 Route::get('/routes', function () {
@@ -16,7 +17,7 @@ Route::get('/routes', function () {
             'name' => $route->getName(),
             'method' => implode('|', $route->methods()),
         ];
-    });
+    });  
 
     return response()->json($routes);
 });
@@ -81,4 +82,13 @@ Route::middleware(['auth:sanctum', 'has.profile'])->prefix('jobs')->group(functi
     Route::get('/filters/options', [SeekerJobs::class, 'filterOptions']); // dynamic filters
     Route::get('/', [SeekerJobs::class, 'index']);         // list with filters
     Route::get('/{id}', [SeekerJobs::class, 'show']);      // job detail
+});
+
+// Job Bookmarks (Seeker)
+Route::middleware('auth:sanctum')->group(function () {
+    Route::prefix('jobs')->group(function () {
+        Route::get('saved', [JobBookmarkController::class, 'index']);
+        Route::post('{id}/save', [JobBookmarkController::class, 'store']);
+        Route::delete('{id}/unsave', [JobBookmarkController::class, 'destroy']);
+    });
 });

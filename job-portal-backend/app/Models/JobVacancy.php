@@ -39,6 +39,15 @@ class JobVacancy extends Model
         return $this->belongsTo(Currency::class);
     }
 
+    /**
+     * A job vacancy has many bookmarks
+     */
+    public function bookmarkedBy()
+    {
+        return $this->belongsToMany(Profile::class, 'job_bookmarks')
+                    ->withTimestamps();
+    }
+
 
     // AUTO-INFER FIELD FROM POSITION
     protected static function booted()

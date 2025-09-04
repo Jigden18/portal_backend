@@ -63,8 +63,14 @@ class JobSearchController extends Controller
         // Fetch all results
         $vacancies = $query->get();
 
+        // fetch all saved job IDs once (optimization)
+        $savedIds = $profile 
+            ? $profile->bookmarks()->pluck('job_vacancy_id')->toArray()
+            : [];
+
         return response()->json([
-            'vacancies' => $vacancies->map(fn($vacancy) => $this->formatVacancy($vacancy)),
+            'vacancies' => $vacancies->map(
+                fn($vacancy) => $this->formatVacancy($vacancy, $savedIds)),
         ]);
     }
 
@@ -79,9 +85,14 @@ class JobSearchController extends Controller
         $vacancy = JobVacancy::with(['organization', 'currency'])
             ->where('status', 'Active')
             ->findOrFail($id);
+        
+        // Check if this one job is saved
+        $isSaved = $profile 
+            ? $profile->bookmarks()->where('job_vacancy_id', $vacancy->id)->exists()
+            : false;
 
         return response()->json([
-            'vacancy' => $this->formatVacancy($vacancy)
+            'vacancy' => $this->formatVacancy($vacancy, [], $isSaved),
         ]);
     }
 
@@ -124,6 +135,10 @@ class JobSearchController extends Controller
                 'name' => $vacancy->organization->name,
                 'logo' => $vacancy->organization->logo_url ?? null,
             ],
+            // NEW: is_saved flag
+            'is_saved'     => $isSaved !== null
+                                ? $isSaved
+                                : in_array($vacancy->id, $savedIds),
             'created_at'   => $vacancy->created_at,
             'updated_at'   => $vacancy->updated_at,
         ];

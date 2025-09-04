@@ -27,4 +27,13 @@ class Profile extends Model
     {
         return $this->belongsTo(User::class, 'user_id');
     }
+
+    /**
+     * Each profile has many job bookmarks
+     */
+    public function bookmarks()
+    {
+        return $this->belongsToMany(JobVacancy::class, 'job_bookmarks')
+                    ->withTimestamps();
+    }
 }
