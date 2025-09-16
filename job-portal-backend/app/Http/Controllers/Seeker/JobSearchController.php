@@ -115,15 +115,15 @@ class JobSearchController extends Controller
     /**
      * Standard format for vacancies (same as org side)
      */
-    private function formatVacancy($vacancy)
+    private function formatVacancy($vacancy, $savedIds = [], $isSaved = null)
     {
         return [
             'id'           => $vacancy->id,
             'position'     => $vacancy->position,
             'field'        => $vacancy->field,
             'salary'       => $vacancy->salary,
-            'currency' => [
-                'code' => $vacancy->currency->code ?? null,
+            'currency'     => [
+                'code'   => $vacancy->currency->code ?? null,
                 'symbol' => $vacancy->currency->symbol ?? null,
             ],
             'location'     => $vacancy->location,

@@ -85,10 +85,11 @@ Route::middleware(['auth:sanctum', 'has.profile'])->prefix('jobs')->group(functi
 });
 
 // Job Bookmarks (Seeker)
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'has.profile'])->group(function () {
     Route::prefix('jobs')->group(function () {
-        Route::get('saved', [JobBookmarkController::class, 'index']);
-        Route::post('{id}/save', [JobBookmarkController::class, 'store']);
-        Route::delete('{id}/unsave', [JobBookmarkController::class, 'destroy']);
+        // Route::get('/jobs/{id}', [SeekerJobs::class, 'show'])->whereNumber('id');
+        Route::post('/{id}/save', [JobBookmarkController::class, 'store'])->whereNumber('id'); // POST /api/jobs/{id}/save
+        Route::delete('/{id}/unsave', [JobBookmarkController::class, 'destroy'])->whereNumber('id'); // DELETE /api/jobs/{id}/unsave});
+        Route::get('/saved', [JobBookmarkController::class, 'index']); // GET /api/jobs/saved
     });
 });
