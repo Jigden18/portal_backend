@@ -4,10 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Notifications\Notifiable; // Import Notifiable trait
 
 class Profile extends Model
 {
-    use HasFactory;
+    use HasFactory, Notifiable;
 
     protected $fillable = [
         'user_id',
@@ -35,5 +36,13 @@ class Profile extends Model
     {
         return $this->belongsToMany(JobVacancy::class, 'job_bookmarks')
                     ->withTimestamps();
+    }
+
+    /**
+     * Each profile (jobseeker) has many applications
+     */
+    public function applications()
+    {
+        return $this->hasMany(JobApplication::class, 'jobseeker_id');
     }
 }

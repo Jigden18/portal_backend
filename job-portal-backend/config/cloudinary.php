@@ -30,6 +30,7 @@ return [
     'upload' => [
         'folder'        => env('CLOUDINARY_DEFAULT_FOLDER', 'profile_photos'),
         'organization_folder' => env('CLOUDINARY_ORGANIZATION_FOLDER', 'organization_logos'),
+        'resume_folder'       => env('CLOUDINARY_RESUME_FOLDER', 'resumes'),
         'resource_type' => 'image',
         'overwrite'     => true,
         'invalidate'    => true,

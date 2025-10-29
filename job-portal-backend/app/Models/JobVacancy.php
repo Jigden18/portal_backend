@@ -48,6 +48,13 @@ class JobVacancy extends Model
                     ->withTimestamps();
     }
 
+    /**
+     * A job vacancy has many applications
+     */
+    public function applications()
+    {
+        return $this->hasMany(JobApplication::class, 'job_id');
+    }
 
     // AUTO-INFER FIELD FROM POSITION
     protected static function booted()
